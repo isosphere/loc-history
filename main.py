@@ -36,6 +36,36 @@ class Pygount:
         return result
 
 
+class SimpleLOCCounter:
+    @classmethod
+    def get_file_paths_from_ext(cls, ext: str) -> List[str]:
+        cmd: str = 'find -type f -name "*.{}"'.format(ext)
+        return [
+            i.strip() for i in get_command_output(cmd).split("\n") if i.strip()
+        ]
+
+    @classmethod
+    def get_locs_from_file_path(cls, file_path: str) -> int:
+        with open(file_path) as f:
+            lines: List[str] = [i.strip() for i in f.readlines() if i.strip()]
+            lines = [i for i in lines if (not i.startswith("#"))]
+            return len(lines)
+
+    @classmethod
+    def get_locs(cls, suffix: str) -> int:
+        result: int = 0
+        extensions: List[str] = [
+            i.strip() for i in suffix.split(",") if i.strip()
+        ]
+        for ext in extensions:
+            file_paths: List[str] = SimpleLOCCounter.get_file_paths_from_ext(
+                ext
+            )
+            for file_path in file_paths:
+                result += SimpleLOCCounter.get_locs_from_file_path(file_path)
+        return result
+
+
 class Commit:
     """Store the commit info: sha1 and commit date."""
 
@@ -81,7 +111,7 @@ class Commit:
     def checkout(self):
         """Change the current git project to this commit.
 
-        This method doesn't check if the current project have untracked/modifed
+        This method doesn't check if the current project have untracked/modified
         files.
         """
         if not Commit.working_directory_clean():
@@ -133,7 +163,7 @@ class CSVOutput(BaseOutput):
     def output_commit(self, commit: Commit):
         values: List[str] = [
             str(commit.date),
-            str(Pygount.get_locs(self.suffix)),
+            str(SimpleLOCCounter.get_locs(self.suffix)),
         ]
         self.output_file_like.write(
             "{}\n".format(self.csv_separator.join(values))
@@ -141,36 +171,6 @@ class CSVOutput(BaseOutput):
 
     def __exit__(self, *args):
         pass
-
-
-class JSONOutput(BaseOutput):
-    def __enter__(self):
-        self.output_file_like.write("{\n")
-        return super(JSONOutput, self).__enter__()
-
-    def __exit__(self, *args):
-        self.output_file_like.write("}\n")
-
-    def output_commit(self, commit: Commit):
-        # fixme > the last line ends with a comma, that is invalid in JSON
-        self.output_file_like.write(
-            '   "{}": {},\n'.format(commit.date, Pygount.get_locs(self.suffix))
-        )
-
-
-def get_output_class(output_name: str):
-    """Return the output class from a output name.
-
-    Arguments:
-        - output_name: can be: csv or json
-    """
-    output_class = {
-        "csv": CSVOutput,
-        "json": JSONOutput,
-    }.get(output_name)
-    if not output_class:
-        raise ValueError("Invalid output name: '{}'".format(output_name))
-    return output_class
 
 
 def print_if_verbose(msg: str, args: argparse.Namespace):
@@ -186,12 +186,6 @@ if __name__ == "__main__":
             "Outputs the LOCs of a git project over time. Useful for project "
             "growth analysis."
         )
-    )
-    parser.add_argument(
-        "--format",
-        choices=["csv", "json"],
-        help="The output format",
-        default="csv",
     )
     parser.add_argument(
         "-v",
@@ -218,12 +212,13 @@ if __name__ == "__main__":
     print_if_verbose("Getting commit list...", args)
     commits: List[Commit] = Commit.sort(Commit.get_commits_list())
     with open(args.output, "w") as file_like:
-        with get_output_class(args.format)(file_like, args.suffix) as output:
+        with CSVOutput(file_like, args.suffix) as output:
             for commit in commits:
                 print_if_verbose("Checking out {}".format(commit), args)
                 commit.checkout()
                 output.output_commit(commit)
                 print_if_verbose("Getting LOCs", args)
                 print_if_verbose(
-                    "LOCs: {}".format(Pygount.get_locs(args.suffix)), args
+                    "LOCs: {}".format(SimpleLOCCounter.get_locs(args.suffix)),
+                    args
                 )
