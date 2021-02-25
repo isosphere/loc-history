@@ -17,29 +17,14 @@ def get_command_output(cmd: str, redirect_error: bool = False) -> str:
         return ""
 
 
-class Pygount:
-    @classmethod
-    def get_locs(cls, suffix: str) -> int:
-        """Return the number of LOCs from actual project."""
-        lines: List[str] = [
-            line.strip()
-            for line in get_command_output(
-                "pygount --suffix={}".format(suffix), redirect_error=True
-            )
-            .strip()
-            .split("\n")
-            if line.strip()
-        ]
-        result = 0
-        for line in lines:
-            result += int(line.split()[0])
-        return result
-
-
 class SimpleLOCCounter:
     @classmethod
-    def get_file_paths_from_ext(cls, ext: str) -> List[str]:
-        cmd: str = 'find -type f -name "*.{}"'.format(ext)
+    def get_file_paths_from_ext(cls, ext: str, exc: str="") -> List[str]:
+        if exc:
+            if not exc.startswith("./"):
+                exc = "./{}".format(exc)
+            exc = ' -not -path "{}"'.format(exc)
+        cmd: str = 'find -type f -name "*.{}"{}'.format(ext, exc)
         return [
             i.strip() for i in get_command_output(cmd).split("\n") if i.strip()
         ]
@@ -52,14 +37,14 @@ class SimpleLOCCounter:
             return len(lines)
 
     @classmethod
-    def get_locs(cls, suffix: str) -> int:
+    def get_locs(cls, suffix: str, exc: str = "") -> int:
         result: int = 0
         extensions: List[str] = [
             i.strip() for i in suffix.split(",") if i.strip()
         ]
         for ext in extensions:
             file_paths: List[str] = SimpleLOCCounter.get_file_paths_from_ext(
-                ext
+                ext, exc
             )
             for file_path in file_paths:
                 result += SimpleLOCCounter.get_locs_from_file_path(file_path)
@@ -134,9 +119,11 @@ class Commit:
 
 
 class BaseOutput:
-    def __init__(self, output_file_like: Any, suffix: str):
+    def __init__(self, output_file_like: Any, suffix: str, exc: str, sha1: bool):
         self.output_file_like: Any = output_file_like
         self.suffix: str = suffix
+        self.exc: str = exc
+        self.sha1: bool = sha1
 
     def __enter__(self):
         return self
@@ -154,17 +141,22 @@ class CSVOutput(BaseOutput):
         super(CSVOutput, self).__init__(*args, **kwargs)
 
     def __enter__(self):
-        headers: List[str] = ["Date", "LOCs"]
+        headers: List[str] = ["Sha1", "Date", "LOCs"]
+        if not self.sha1:
+            headers.remove("Sha1")
         self.output_file_like.write(
             "{}\n".format(self.csv_separator.join(headers))
         )
         return super(CSVOutput, self).__enter__()
 
     def output_commit(self, commit: Commit):
-        values: List[str] = [
+        values: List[str] = []
+        if self.sha1:
+            values.append(commit.commit_sha1)
+        values.extend([
             str(commit.date),
-            str(SimpleLOCCounter.get_locs(self.suffix)),
-        ]
+            str(SimpleLOCCounter.get_locs(self.suffix, self.exc)),
+        ])
         self.output_file_like.write(
             "{}\n".format(self.csv_separator.join(values))
         )
@@ -195,6 +187,12 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "-sha1",
+        help="Output the commit sha1 in the CSV",
+        default=False,
+        action="store_true",
+    )
+    parser.add_argument(
         "--output",
         help=(
             "The output file. If not defined, the output is shown in the "
@@ -207,12 +205,17 @@ if __name__ == "__main__":
         help=("Indicates which files will be used to count the LOCs."),
         default="py",
     )
+    parser.add_argument(
+        "--exc",
+        help=("Indicates which files wont be included in the counting."),
+        default="",
+    )
     args = parser.parse_args()
 
     print_if_verbose("Getting commit list...", args)
     commits: List[Commit] = Commit.sort(Commit.get_commits_list())
     with open(args.output, "w") as file_like:
-        with CSVOutput(file_like, args.suffix) as output:
+        with CSVOutput(file_like, args.suffix, args.exc, args.sha1) as output:
             for commit in commits:
                 print_if_verbose("Checking out {}".format(commit), args)
                 commit.checkout()
