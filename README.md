@@ -4,7 +4,7 @@ This script generates a output file in CSV format with the number of LOCs (line 
 The script go through git repository, doing many checkout, from far beggining to the more recent commit, counting the amount of LOCs of each revision.
 
 > [!NOTE]
-> All unsaved changes will be lost. Commit your changes in your local directory before using this tool. As of this writing, it works on the git repo in the current directory and cannot be directed elsewhere. 
+> All unsaved changes will be lost. Commit your changes in your local directory before using this tool. As of this writing, it works on the git repo in the current directory and cannot be directed elsewhere. Also, while running, it doesn't care about your keyboard interrupt. You'll have to kill it. 
 
 ## Usage
 
