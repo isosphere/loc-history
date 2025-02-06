@@ -1,0 +1,22 @@
+[project]
+name = "loc-history"
+version = "1.0"
+description = "Get a dataset of LOCs over time"
+authors = [
+    {name = "cptx032"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mypy (>=1.15.0,<2.0.0)",
+    "python-dateutil (>=2.9.0.post0,<3.0.0)",
+    "black (>=25.1.0,<26.0.0)",
+    "isort (>=6.0.0,<7.0.0)",
+    "pyflakes (>=3.2.0,<4.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
