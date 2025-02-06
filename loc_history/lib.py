@@ -172,7 +172,8 @@ def print_if_verbose(msg: str, args: argparse.Namespace):
     print(msg)
 
 
-if __name__ == "__main__":
+#if __name__ == "__main__":
+def run():
     parser = argparse.ArgumentParser(
         description=(
             "Outputs the LOCs of a git project over time. Useful for project "
